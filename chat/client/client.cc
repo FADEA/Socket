@@ -1,36 +1,39 @@
 #include "config.h"
 
-/*讲fd中maxlen长度的字节读到vptr中 */
-int readLine(int fd,char *vptr,int maxlen){
-    int i,rc;
-    char c,*ptr;
-
-    ptr=vptr;
-    for(i=0;i<maxlen;i++){
-        rc=read(fd,&c,1);
-        if(rc==1){
-            *ptr++=c;
-            if(c=='\n') break;
-        }else if(rc==0){
-            *ptr=0;
-            return (i-1);
-        }else{
-            return -1;
+/*接收服务器消息函数 */
+void * recv_message(void *fd){
+    int sockfd=*(int*) fd;
+    while(true){
+        char buff[MAX_LINE];
+        memset(buff,0,MAX_LINE);
+        int n;
+        n=recv(sockfd,buff,MAX_LINE,0);
+        if(n==-1){
+            perror("recv error.\n");
+            exit(1);
         }
-    }
+        buff[n]='\0';
 
-    *ptr=0;
-    return i;
+        if(strcmp(buff,"byebye.")==0){
+            cout<<"Server is closed"<<endl;
+            close(sockfd);
+            exit(0);
+        }
+
+        cout<<"Server<<<"<<buff;
+    }   
 }
 int main(int argc,char** argv){
 
     int sockfd;
+    pthread_t recv_t;
     struct sockaddr_in servaddr;
 
     if(argc!=2){
         perror("usage:tcpli <IPaddress>");
         exit(1);
     }
+
     sockfd=socket(AF_INET,SOCK_STREAM,0);
     if(sockfd==-1){
         perror("socket error");
@@ -51,21 +54,32 @@ int main(int argc,char** argv){
         exit(1);
     }
     
+    if(pthread_create(&recv_t,NULL,recv_message,&sockfd)==-1){
+        perror("pthread create error");
+        exit(1);
+    }
+
     //消息处理
+    char msg[MAX_LINE];
+    memset(msg,0,MAX_LINE);
     char sendLine[MAX_LINE],recvLine[MAX_LINE];
-    while(fgets(sendLine,MAX_LINE,stdin)!=NULL){
+    while(true){
+        if(fgets(msg,MAX_LINE,stdin)==NULL) break;
 
-        write(sockfd,sendLine,strlen(sendLine));
-        
-        if(readLine(sockfd,recvLine,MAX_LINE)==0){
-            perror("服务器终止");
+        if(strcmp(msg,"exit\n")==0){
+            cout<<"byebye."<<endl;
+            memset(msg,0,MAX_LINE);
+            strcpy(msg,"byebye.");
+            send(sockfd,msg,strlen(msg),0);
+            close(sockfd);
             exit(1);
         }
 
-        if(fputs(recvLine,stdout)==EOF){ /*输出从服务器接收的消息 */
-            perror("输出错误");
+        if(send(sockfd,msg,strlen(msg),0)<0){
+            perror("send error.\n");
             exit(1);
         }
+
     }
 
     close(sockfd); /*关闭套接字 */

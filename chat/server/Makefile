@@ -1,10 +1,10 @@
 cc = g++
 prom = server
-deps = calc.h
+deps = config.h
 obj = server.o
 
 $(prom):$(obj)
-	$(cc) -o $(prom) $(obj)
+	$(cc) -o $(prom) $(obj) -pthread
 
 %.o:%.cc $(deps)
 	$(cc) -c $< -o $@
